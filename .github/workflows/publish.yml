@@ -99,6 +99,18 @@ jobs:
             echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check Dev-Kit Eligibility
+        id: devkit
+        run: |
+          V="${{ matrix.node-version }}"
+          if [[ "$V" == "0.10" || "$V" == "0.12" ]]; then
+            echo "build=false" >> $GITHUB_OUTPUT
+          elif (( $(echo "$V >= 18" | bc -l) )); then
+            echo "build=true" >> $GITHUB_OUTPUT
+          else
+            echo "build=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Standard
         uses: docker/build-push-action@v5
         with:
@@ -112,6 +124,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-base
 
       - name: Build Dev-Kit
+        if: steps.devkit.outputs.build == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -175,15 +188,17 @@ jobs:
           echo "Multi-version Docker containers for Node.js (Alpine/Slim). **v0.10 to v23+**." >> README.md
           echo "" >> README.md
           echo "## 🛠️ Dev-Kit (Developer Variant)" >> README.md
-          echo "Varian dengan tools lengkap (\`git\`, \`curl\`, \`build-base\`) untuk mendukung kompilasi native." >> README.md
+          echo "Varian dengan tools lengkap (\`git\`, \`curl\`, \`build-base\`) untuk mendukung kompilasi native. **Tersedia khusus untuk Node.js v18 ke atas (LTS/Current).**" >> README.md
           echo "" >> README.md
           echo "## 📦 Supported Versions" >> README.md
-          echo "| Version | Image Tag | Base OS |" >> README.md
-          echo "| :--- | :--- | :--- |" >> README.md
+          echo "| Version | Image Tag | Dev-Kit | Base OS |" >> README.md
+          echo "| :--- | :--- | :--- | :--- |" >> README.md
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
             OS="Alpine"
-            if [[ "$v" == "0.10" || "$V" == "0.12" ]]; then OS="Slim (Debian)"; fi
-            echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $OS |" >> README.md
+            if [[ "$v" == "0.10" || "$v" == "0.12" ]]; then OS="Slim (Debian)"; fi
+            DEVKIT="N/A"
+            if (( $(echo "$v >= 18" | bc -l) )); then DEVKIT="\`$v-dev\` ✅"; fi
+            echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $DEVKIT | $OS |" >> README.md
           done
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
