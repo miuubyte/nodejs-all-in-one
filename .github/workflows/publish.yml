@@ -84,8 +84,47 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
+  update-readme:
+    needs: get-versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Generate README
+        run: |
+          VERSIONS='${{ needs.get-versions.outputs.matrix }}'
+          LATEST='${{ needs.get-versions.outputs.latest }}'
+          REPO="${{ github.repository }}"
+          
+          echo "# Node.js All-in-One Container 🚀" > README.md
+          echo "Multi-version Docker containers for Node.js (Alpine Linux)." >> README.md
+          echo "" >> README.md
+          echo "## Supported Versions" >> README.md
+          
+          # Convert JSON array to list and sort descending for README
+          echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
+            EXTRA=""
+            if [ "$v" == "$LATEST" ]; then EXTRA=" (Latest)"; fi
+            echo "- **Node.js $v**: \`ghcr.io/$REPO:$v\`$EXTRA" >> README.md
+          done
+          
+          echo "" >> README.md
+          echo "## Usage" >> README.md
+          echo "\`\`\`bash" >> README.md
+          echo "docker pull ghcr.io/$REPO:latest" >> README.md
+          echo "\`\`\`" >> README.md
+          
+          git config --global user.name "miuubyte"
+          git config --global user.email "miuudev@gmail.com"
+          git add README.md
+          git commit -m "docs: update README with supported versions [skip ci]" || exit 0
+          git push
+
   cleanup:
-    needs: tag-latest
+    needs: [tag-latest, update-readme]
     runs-on: ubuntu-latest
     permissions:
       packages: write
