@@ -156,32 +156,42 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Update README
+      - name: Update README and Dockerfile
         run: |
           VERSIONS='${{ needs.get-versions.outputs.matrix }}'
+          LATEST='${{ needs.get-versions.outputs.latest }}'
+          COUNT=$(echo $VERSIONS | jq '. | length')
           REPO="${{ github.repository }}"
+          
+          # Sync Dockerfile
+          sed -i "s|ARG BASE_IMAGE=.*|ARG BASE_IMAGE=node:$LATEST-alpine|" Dockerfile
+          
+          # Generate README
           echo "# Node.js All-in-One Container 🚀" > README.md
-          echo "![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
+          echo "![Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Versions](https://img.shields.io/badge/Node.js-$COUNT-Versions-blue?style=for-the-badge&logo=node.js) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
           echo "" >> README.md
-          echo "Multi-version Node.js images. **v0.10 to v23+**. Intelligent hybrid OS (Alpine/Slim)." >> README.md
+          echo "The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned, and updated. From legacy **v0.10** to modern **v25+**." >> README.md
           echo "" >> README.md
-          echo "## 📦 Supported Versions (Grouped)" >> README.md
+          echo "## 🏷️ Tags Structure" >> README.md
           echo "| Version | Standard Tags | Dev-Kit Tags (v18+) | Base OS |" >> README.md
           echo "| :--- | :--- | :--- | :--- |" >> README.md
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
             OS="Alpine"
             SUFFIX="alpine"
             if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; SUFFIX="slim"; fi
+            
             STD="\`$v\`, \`$v-$SUFFIX\`"
             DEVKIT="N/A"
             MAJOR=$(echo "$v" | cut -d. -f1)
             if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\`, \`$v-$SUFFIX-dev\` ✅"; fi
+            
             echo "| **Node.js $v** | $STD | $DEVKIT | $OS |" >> README.md
           done
+          
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
-          git add README.md
-          git commit -m "chore: sync clean readme [skip ci]" || exit 0
+          git add README.md Dockerfile
+          git commit -m "chore: sync assets and latest base [skip ci]" || exit 0
           git push
 
   cleanup-final:
@@ -190,10 +200,11 @@ jobs:
     permissions:
       packages: write
     steps:
-      - name: Deep Orphan Cleanup
+      - name: Aggressive Registry Cleanup
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          for page in {1..10}; do
+          echo "🧹 Starting aggressive pre-build cleanup for $PACKAGE_NAME..."
+          for page in {1..5}; do
             VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
             if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
@@ -201,6 +212,7 @@ jobs:
               id=$(echo "$version" | jq -r '.id')
               tags=$(echo "$version" | jq -r '.metadata.container.tags')
               if [ "$tags" == "null" ] || [ "$tags" == "[]" ]; then
+                echo "🗑️ Deleting orphaned SHA digest: $id"
                 curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
                   "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
               fi
