@@ -1,7 +1,7 @@
 # Node.js Current Versions (All-in-One) 🚀
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-current-versions/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)
 
-Multi-version Docker containers for Node.js (Alpine Linux). Includes all versions (LTS + Current).
+Multi-version Docker containers for Node.js (Alpine Linux). **Restricted to Current (non-LTS) versions only.**
 
 ## 📦 Supported Versions
 
