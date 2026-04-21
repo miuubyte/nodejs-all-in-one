@@ -1,9 +1,9 @@
 # Node.js All-in-One Container 🚀
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
+![Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![Versions](https://img.shields.io/badge/Node.js-24-Versions-blue?style=for-the-badge&logo=node.js) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
 
-Multi-version Node.js images. **v0.10 to v23+**. Intelligent hybrid OS (Alpine/Slim).
+The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned, and updated. From legacy **v0.10** to modern **v25+**.
 
-## 📦 Supported Versions (Grouped)
+## 🏷️ Tags Structure
 | Version | Standard Tags | Dev-Kit Tags (v18+) | Base OS |
 | :--- | :--- | :--- | :--- |
 | **Node.js 25** | `25`, `25-alpine` | `25-dev`, `25-alpine-dev` ✅ | Alpine |
