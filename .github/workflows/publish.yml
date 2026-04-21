@@ -21,16 +21,41 @@ jobs:
       - id: set-matrix
         run: |
           DATA=$(curl -s https://nodejs.org/dist/index.json)
-          # Get ALL versions from v0.x onwards
-          VERSIONS=$(echo $DATA | jq -c '[.[] | .version | capture("v(?<major>\\d+)") | .major | tonumber] | unique | sort')
+          # Get all major versions, but split 0 into 0.10 and 0.12
+          MAJORS=$(echo $DATA | jq -c '[.[] | .version | capture("v(?<major>\\d+)") | .major | tonumber | select(. > 0)] | unique | sort')
+          VERSIONS=$(echo $MAJORS | jq -c '["0.10", "0.12"] + .')
           LATEST=$(echo $DATA | jq -r '.[0].version | capture("v(?<major>\\d+)") | .major')
           echo "matrix=$VERSIONS" >> $GITHUB_OUTPUT
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
 
+  cleanup-before:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Neat Registry Cleanup
+        run: |
+          PACKAGE_NAME=${{ github.event.repository.name }}
+          for page in {1..20}; do
+            VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
+            if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
+            echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
+              id=$(echo "$version" | jq -r '.id')
+              tags=$(echo "$version" | jq -r '.metadata.container.tags')
+              if [ "$tags" == "null" ] || [ "$tags" == "[]" ]; then
+                echo "Deleting untagged ID: $id"
+                curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
+              fi
+            done
+          done
+
   build-and-push:
-    needs: get-versions
+    needs: [get-versions, cleanup-before]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       max-parallel: 1
       matrix:
         node-version: ${{ fromJson(needs.get-versions.outputs.matrix) }}
@@ -53,14 +78,22 @@ jobs:
       - name: Extract full version
         id: meta
         run: |
-          FULL=$(curl -s https://nodejs.org/dist/index.json | jq -r --arg major "${{ matrix.node-version }}" '.[] | select(.version | startswith("v"+$major+".")) | .version' | head -n 1 | sed 's/v//')
+          V="${{ matrix.node-version }}"
+          DATA=$(curl -s https://nodejs.org/dist/index.json)
+          if [[ "$V" == "0.10" || "$V" == "0.12" ]]; then
+            FULL=$(echo $DATA | jq -r --arg prefix "v$V." '.[] | select(.version | startswith($prefix)) | .version' | head -n 1 | sed 's/v//')
+          else
+            FULL=$(echo $DATA | jq -r --arg major "v$V." '.[] | select(.version | startswith($major)) | .version' | head -n 1 | sed 's/v//')
+          fi
           echo "full=$FULL" >> $GITHUB_OUTPUT
 
       - name: Determine Base Image
         id: base
         run: |
-          V=${{ matrix.node-version }}
-          if [ "$V" -lt 4 ]; then
+          V="${{ matrix.node-version }}"
+          if [[ "$V" == "0.10" || "$V" == "0.12" ]]; then
+            echo "img=node:$V-slim" >> $GITHUB_OUTPUT
+          elif [ "$V" -lt 4 ]; then
             echo "img=node:$V-slim" >> $GITHUB_OUTPUT
           else
             echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
@@ -110,11 +143,7 @@ jobs:
         id: base
         run: |
           V=${{ needs.get-versions.outputs.latest }}
-          if [ "$V" -lt 4 ]; then
-            echo "img=node:$V-slim" >> $GITHUB_OUTPUT
-          else
-            echo "img=img=node:$V-alpine" >> $GITHUB_OUTPUT
-          fi
+          echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
       - name: Build and push latest
         uses: docker/build-push-action@v5
         with:
@@ -127,7 +156,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-base
 
   update-assets:
-    needs: get-versions
+    needs: [get-versions, build-and-push]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -139,45 +168,27 @@ jobs:
           VERSIONS='${{ needs.get-versions.outputs.matrix }}'
           LATEST='${{ needs.get-versions.outputs.latest }}'
           REPO="${{ github.repository }}"
-          
-          sed -i "s/ARG NODE_VERSION=.*/ARG NODE_VERSION=$LATEST/" Dockerfile
-          
+          sed -i "s|ARG BASE_IMAGE=.*|ARG BASE_IMAGE=node:$LATEST-alpine|" Dockerfile
           echo "# Node.js All-in-One Container 🚀" > README.md
           echo "![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
           echo "" >> README.md
-          echo "Multi-version Docker containers for Node.js (Alpine Linux). **LTS + Current versions** with automated security scanning." >> README.md
+          echo "Multi-version Docker containers for Node.js (Alpine/Slim). **v0.10 to v23+**." >> README.md
           echo "" >> README.md
           echo "## 🛠️ Dev-Kit (Developer Variant)" >> README.md
-          echo "Selain image standar yang ringan (Alpine), kami juga menyediakan varian **Dev-Kit** untuk setiap versi." >> README.md
-          echo "" >> README.md
-          echo "- **Tag Format**: \`ghcr.io/$REPO:X-dev\` (contoh: \`18-dev\`)" >> README.md
-          echo "- **Isi**: Sudah terinstall \`git\`, \`curl\`, \`build-base\`, \`python3\`, dan \`autoconf\`." >> README.md
-          echo "- **Kegunaan**: Sangat membantu developer yang perlu mem-build library native (misal: \`node-gyp\`) atau butuh tools tambahan di dalam container." >> README.md
+          echo "Varian dengan tools lengkap (\`git\`, \`curl\`, \`build-base\`) untuk mendukung kompilasi native." >> README.md
           echo "" >> README.md
           echo "## 📦 Supported Versions" >> README.md
-          echo "" >> README.md
-          echo "| Node.js Version | Container Image Tag | Status |" >> README.md
+          echo "| Version | Image Tag | Base OS |" >> README.md
           echo "| :--- | :--- | :--- |" >> README.md
-          
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
-            STATUS="Stable"
-            if [ "$v" == "$LATEST" ]; then STATUS="**Latest** 🌟"; fi
-            echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $STATUS |" >> README.md
+            OS="Alpine"
+            if [[ "$v" == "0.10" || "$V" == "0.12" ]]; then OS="Slim (Debian)"; fi
+            echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $OS |" >> README.md
           done
-          
-          echo "" >> README.md
-          echo "## 🚀 Quick Usage" >> README.md
-          echo "\`\`\`bash" >> README.md
-          echo "docker pull ghcr.io/$REPO:latest" >> README.md
-          echo "\`\`\`" >> README.md
-          echo "" >> README.md
-          echo "---" >> README.md
-          echo "*This README is automatically updated by GitHub Actions.*" >> README.md
-          
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
           git add README.md Dockerfile
-          git commit -m "chore: update assets with dev-kit explanation [skip ci]" || exit 0
+          git commit -m "chore: sync assets [skip ci]" || exit 0
           git push
 
   cleanup:
@@ -186,10 +197,9 @@ jobs:
     permissions:
       packages: write
     steps:
-      - name: Aggressive Cleanup
+      - name: Final Cleanup
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          # Delete all untagged versions and orphaned SHA256 layers
           for page in {1..20}; do
             VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
@@ -197,9 +207,7 @@ jobs:
             echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
               id=$(echo "$version" | jq -r '.id')
               tags=$(echo "$version" | jq -r '.metadata.container.tags')
-              # Delete if untagged
               if [ "$tags" == "null" ] || [ "$tags" == "[]" ]; then
-                echo "Deleting orphaned version ID: $id"
                 curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
                   "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
               fi

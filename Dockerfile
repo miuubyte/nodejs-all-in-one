@@ -5,11 +5,14 @@ WORKDIR /app
 
 ARG DEV_MODE=false
 RUN if [ "$DEV_MODE" = "true" ]; then \
-    (apk add --no-cache git curl build-base python3 autoconf || \
-     apt-get update && apt-get install -y git curl build-essential python3 autoconf); \
+    if command -v apk >/dev/null; then \
+        apk add --no-cache git curl build-base python3 autoconf; \
+    else \
+        apt-get update && apt-get install -y --no-install-recommends git curl build-essential python3 autoconf || \
+        apt-get install -y --no-install-recommends git curl build-essential python autoconf; \
+    fi; \
     fi
 
-# Metadata for identification
-RUN echo "{\"image\": \"all-in-one\", \"base\": \"${BASE_IMAGE}\"}" > /image-info.json
+RUN echo "{\"image\": \"nodejs-all-in-one\", \"base\": \"${BASE_IMAGE}\"}" > /image-info.json
 
 CMD ["node"]
