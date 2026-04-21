@@ -1,7 +1,7 @@
-# Node.js Current Versions (All-in-One) 🚀
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)
+# Node.js All-in-One Container 🚀
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
 
-Multi-version Docker containers for Node.js (Alpine Linux). Includes all versions (LTS + Current).
+Multi-version Docker containers for Node.js (Alpine Linux). **LTS + Current versions** with automated security scanning.
 
 ## 📦 Supported Versions
 
@@ -23,13 +23,9 @@ Multi-version Docker containers for Node.js (Alpine Linux). Includes all version
 | **Node.js 12** | `ghcr.io/miuubyte/nodejs-all-in-one:12` | Stable |
 | **Node.js 11** | `ghcr.io/miuubyte/nodejs-all-in-one:11` | Stable |
 | **Node.js 10** | `ghcr.io/miuubyte/nodejs-all-in-one:10` | Stable |
-| **Node.js 9** | `ghcr.io/miuubyte/nodejs-all-in-one:9` | Stable |
-| **Node.js 8** | `ghcr.io/miuubyte/nodejs-all-in-one:8` | Stable |
-| **Node.js 7** | `ghcr.io/miuubyte/nodejs-all-in-one:7` | Stable |
-| **Node.js 6** | `ghcr.io/miuubyte/nodejs-all-in-one:6` | Stable |
-| **Node.js 5** | `ghcr.io/miuubyte/nodejs-all-in-one:5` | Stable |
-| **Node.js 4** | `ghcr.io/miuubyte/nodejs-all-in-one:4` | Stable |
-| **Node.js 0** | `ghcr.io/miuubyte/nodejs-all-in-one:0` | Stable |
+
+## 🛠️ Dev-Kit Variant
+Append `-dev` to any tag to get an image with `git`, `curl`, and `build-base` pre-installed.
 
 ## 🚀 Quick Usage
 ```bash
