@@ -1,5 +1,5 @@
 # Node.js All-in-One Container 🚀
-![Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
+![Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
 
 The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned, and updated. From legacy **v0.10** to modern **v25+**.
 
@@ -10,7 +10,7 @@ The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned
 | **Node.js 24** | `24`, `24-alpine` | `24-dev`, `24-alpine-dev` ✅ | Alpine |
 | **Node.js 23** | `23`, `23-alpine` | `23-dev`, `23-alpine-dev` ✅ | Alpine |
 | **Node.js 22** | `22`, `22-alpine` | `22-dev`, `22-alpine-dev` ✅ | Alpine |
-| **Node.js 21** | `21`, `21-alpine" | `21-dev`, `21-alpine-dev` ✅ | Alpine |
+| **Node.js 21** | `21`, `21-alpine` | `21-dev`, `21-alpine-dev` ✅ | Alpine |
 | **Node.js 20** | `20`, `20-alpine` | `20-dev`, `20-alpine-dev` ✅ | Alpine |
 | **Node.js 19** | `19`, `19-alpine` | `19-dev`, `19-alpine-dev` ✅ | Alpine |
 | **Node.js 18** | `18`, `18-alpine` | `18-dev`, `18-alpine-dev` ✅ | Alpine |
