@@ -29,6 +29,7 @@ Multi-version Docker containers for Node.js (Alpine Linux). Includes all version
 | **Node.js 6** | `ghcr.io/miuubyte/nodejs-all-in-one:6` | Stable |
 | **Node.js 5** | `ghcr.io/miuubyte/nodejs-all-in-one:5` | Stable |
 | **Node.js 4** | `ghcr.io/miuubyte/nodejs-all-in-one:4` | Stable |
+| **Node.js 0** | `ghcr.io/miuubyte/nodejs-all-in-one:0` | Stable |
 
 ## 🚀 Quick Usage
 ```bash
