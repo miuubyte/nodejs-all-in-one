@@ -1,7 +1,7 @@
 # Node.js All-in-One Container 🚀
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)
 
-Multi-version Docker containers for Node.js (Alpine Linux). Automatically updated and optimized.
+Multi-version Docker containers for Node.js (Alpine Linux). **Restricted to LTS (Long Term Support) versions only.**
 
 ## 📦 Supported Versions
 
