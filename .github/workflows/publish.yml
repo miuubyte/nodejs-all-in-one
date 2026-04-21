@@ -131,22 +131,25 @@ jobs:
     steps:
       - name: Delete all untagged versions
         run: |
-          # Fetch all versions of the package
-          # Using the package name from the repository name
           PACKAGE_NAME=${{ github.event.repository.name }}
+          echo "Deep cleaning untagged versions for $PACKAGE_NAME..."
           
-          echo "Cleaning up untagged versions for $PACKAGE_NAME..."
-          
+          # Fetch up to 100 versions (increase if needed)
           VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions")
+            "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100")
           
-          # Check if any untagged versions exist and delete them
-          echo "$VERSIONS" | jq -c '.[] | select(.metadata.container.tags | length == 0) | .id' | while read id; do
-            echo "Deleting untagged version ID: $id"
-            curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
+          # Iterate and delete if tags are empty or null
+          echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
+            id=$(echo "$version" | jq -r '.id')
+            tags=$(echo "$version" | jq -r '.metadata.container.tags')
+            name=$(echo "$version" | jq -r '.name')
+            
+            if [ "$tags" == "null" ] || [ "$tags" == "[]" ] || [ -z "$tags" ]; then
+              echo "Removing untagged: $name (ID: $id)"
+              curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
+            fi
           done
-          
           echo "Cleanup complete."
