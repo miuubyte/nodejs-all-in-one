@@ -1,5 +1,5 @@
 # Node.js All-in-One Container 🚀
-![Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-all-in-one/publish.yml?branch=main&style=for-the-badge) ![Versions](https://img.shields.io/badge/Node.js-24-Versions-blue?style=for-the-badge&logo=node.js) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
+![Versions](https://img.shields.io/badge/Node.js-24-Versions-blue?style=for-the-badge&logo=node.js) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)
 
 The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned, and updated. From legacy **v0.10** to modern **v25+**.
 
