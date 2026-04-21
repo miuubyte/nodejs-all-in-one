@@ -16,11 +16,8 @@ The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned
 | **Node.js 18** | `18`, `18-alpine` | `18-dev`, `18-alpine-dev` ✅ | Alpine |
 | **Node.js 17** | `17`, `17-alpine` | N/A | Alpine |
 | **Node.js 16** | `16`, `16-alpine` | N/A | Alpine |
-| **Node.js 15** | `15`, `15-alpine` | N/A | Alpine |
 | **Node.js 14** | `14`, `14-alpine` | N/A | Alpine |
-| **Node.js 13** | `13`, `13-alpine` | N/A | Alpine |
 | **Node.js 12** | `12`, `12-alpine` | N/A | Alpine |
-| **Node.js 11** | `11`, `11-alpine` | N/A | Alpine |
 | **Node.js 10** | `10`, `10-alpine` | N/A | Alpine |
 | **Node.js 9** | `9`, `9-slim` | N/A | Slim (Debian) |
 | **Node.js 8** | `8`, `8-alpine` | N/A | Alpine |
@@ -30,3 +27,6 @@ The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned
 | **Node.js 4** | `4`, `4-alpine` | N/A | Alpine |
 | **Node.js 0.12** | `0.12`, `0.12-slim` | N/A | Slim (Debian) |
 | **Node.js 0.10** | `0.10`, `0.10-slim` | N/A | Slim (Debian) |
+
+---
+Maintainer: miuubyte
