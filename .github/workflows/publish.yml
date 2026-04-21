@@ -27,32 +27,8 @@ jobs:
           echo "matrix=$VERSIONS" >> $GITHUB_OUTPUT
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
 
-  cleanup-before:
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: Aggressive Registry Cleanup
-        run: |
-          PACKAGE_NAME=${{ github.event.repository.name }}
-          # Clean up to 500 latest versions to ensure no orphans survive
-          for page in {1..5}; do
-            VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
-            if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
-            echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
-              id=$(echo "$version" | jq -r '.id')
-              tags=$(echo "$version" | jq -r '.metadata.container.tags')
-              if [ "$tags" == "null" ] || [ "$tags" == "[]" ]; then
-                echo "Removing orphaned SHA digest: $id"
-                curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                  "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
-              fi
-            done
-          done
-
   build-and-push:
-    needs: [get-versions, cleanup-before]
+    needs: [get-versions]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -118,32 +94,33 @@ jobs:
             echo "build=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and Push Standard
-        run: |
-          IMG_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          SUFFIX="${{ steps.base.outputs.suffix }}"
-          docker build --build-arg BASE_IMAGE=${{ steps.base.outputs.img }} \
-            -t $IMG_TAG:${{ matrix.node-version }} \
-            -t $IMG_TAG:${{ steps.meta.outputs.full }} \
-            -t $IMG_TAG:${{ matrix.node-version }}-$SUFFIX \
-            .
-          docker push $IMG_TAG:${{ matrix.node-version }}
-          docker push $IMG_TAG:${{ steps.meta.outputs.full }}
-          docker push $IMG_TAG:${{ matrix.node-version }}-$SUFFIX
+      - name: Build and Push (Grouped Tags)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            BASE_IMAGE=${{ steps.base.outputs.img }}
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-${{ steps.base.outputs.suffix }}
 
-      - name: Build and Push Dev-Kit
+      - name: Build and Push Dev-Kit (Grouped Tags)
         if: steps.devkit.outputs.build == 'true'
-        run: |
-          IMG_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          SUFFIX="${{ steps.base.outputs.suffix }}"
-          docker build --build-arg BASE_IMAGE=${{ steps.base.outputs.img }} --build-arg DEV_MODE=true \
-            -t $IMG_TAG:${{ matrix.node-version }}-dev \
-            -t $IMG_TAG:${{ steps.meta.outputs.full }}-dev \
-            -t $IMG_TAG:${{ matrix.node-version }}-$SUFFIX-dev \
-            .
-          docker push $IMG_TAG:${{ matrix.node-version }}-dev
-          docker push $IMG_TAG:${{ steps.meta.outputs.full }}-dev
-          docker push $IMG_TAG:${{ matrix.node-version }}-$SUFFIX-dev
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            BASE_IMAGE=${{ steps.base.outputs.img }}
+            DEV_MODE=true
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-dev
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}-dev
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-${{ steps.base.outputs.suffix }}-dev
 
   tag-latest:
     needs: [get-versions, build-and-push]
@@ -159,16 +136,17 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push latest (Manual)
-        run: |
-          IMG_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          V=${{ needs.get-versions.outputs.latest }}
-          docker build --build-arg BASE_IMAGE=node:$V-alpine \
-            -t $IMG_TAG:latest \
-            -t $IMG_TAG:latest-alpine \
-            .
-          docker push $IMG_TAG:latest
-          docker push $IMG_TAG:latest-alpine
+      - name: Build and push latest
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            BASE_IMAGE=node:${{ needs.get-versions.outputs.latest }}-alpine
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-alpine
 
   update-assets:
     needs: [get-versions, build-and-push]
@@ -187,25 +165,23 @@ jobs:
           echo "" >> README.md
           echo "Multi-version Node.js images. **v0.10 to v23+**. Intelligent hybrid OS (Alpine/Slim)." >> README.md
           echo "" >> README.md
-          echo "## 🛠️ Tags Structure" >> README.md
+          echo "## 📦 Supported Versions (Grouped)" >> README.md
           echo "| Version | Standard Tags | Dev-Kit Tags (v18+) | Base OS |" >> README.md
           echo "| :--- | :--- | :--- | :--- |" >> README.md
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
             OS="Alpine"
             SUFFIX="alpine"
             if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; SUFFIX="slim"; fi
-            
             STD="\`$v\`, \`$v-$SUFFIX\`"
             DEVKIT="N/A"
             MAJOR=$(echo "$v" | cut -d. -f1)
             if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\`, \`$v-$SUFFIX-dev\` ✅"; fi
-            
             echo "| **Node.js $v** | $STD | $DEVKIT | $OS |" >> README.md
           done
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
           git add README.md
-          git commit -m "chore: sync organized readme [skip ci]" || exit 0
+          git commit -m "chore: sync clean readme [skip ci]" || exit 0
           git push
 
   cleanup-final:
