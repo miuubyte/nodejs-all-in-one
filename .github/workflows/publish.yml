@@ -27,8 +27,32 @@ jobs:
           echo "matrix=$VERSIONS" >> $GITHUB_OUTPUT
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
 
+  cleanup-before:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Aggressive Registry Cleanup
+        run: |
+          PACKAGE_NAME=${{ github.event.repository.name }}
+          echo "🧹 Starting aggressive pre-build cleanup for $PACKAGE_NAME..."
+          for page in {1..5}; do
+            VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
+            if [ -z "$VERSIONS" ] || [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
+            echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
+              id=$(echo "$version" | jq -r '.id')
+              tags=$(echo "$version" | jq -r '.metadata.container.tags')
+              if [ "$tags" == "null" ] || [ "$tags" == "[]" ]; then
+                echo "🗑️ Deleting orphaned SHA digest: $id"
+                curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
+              fi
+            done
+          done || echo "Registry is already clean."
+
   build-and-push:
-    needs: [get-versions]
+    needs: [get-versions, cleanup-before]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -163,10 +187,8 @@ jobs:
           COUNT=$(echo $VERSIONS | jq '. | length')
           REPO="${{ github.repository }}"
           
-          # Sync Dockerfile
           sed -i "s|ARG BASE_IMAGE=.*|ARG BASE_IMAGE=node:$LATEST-alpine|" Dockerfile
           
-          # Generate README
           echo "# Node.js All-in-One Container 🚀" > README.md
           echo "![Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Versions](https://img.shields.io/badge/Node.js-$COUNT-Versions-blue?style=for-the-badge&logo=node.js) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
           echo "" >> README.md
@@ -179,12 +201,10 @@ jobs:
             OS="Alpine"
             SUFFIX="alpine"
             if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; SUFFIX="slim"; fi
-            
             STD="\`$v\`, \`$v-$SUFFIX\`"
             DEVKIT="N/A"
             MAJOR=$(echo "$v" | cut -d. -f1)
             if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\`, \`$v-$SUFFIX-dev\` ✅"; fi
-            
             echo "| **Node.js $v** | $STD | $DEVKIT | $OS |" >> README.md
           done
           
@@ -203,11 +223,11 @@ jobs:
       - name: Aggressive Registry Cleanup
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          echo "🧹 Starting aggressive pre-build cleanup for $PACKAGE_NAME..."
+          echo "🧹 Starting aggressive post-build cleanup for $PACKAGE_NAME..."
           for page in {1..5}; do
             VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
-            if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
+            if [ -z "$VERSIONS" ] || [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
             echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
               id=$(echo "$version" | jq -r '.id')
               tags=$(echo "$version" | jq -r '.metadata.container.tags')
@@ -217,4 +237,4 @@ jobs:
                   "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
               fi
             done
-          done
+          done || echo "Cleanup complete."
