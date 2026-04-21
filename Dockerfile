@@ -1,13 +1,15 @@
-ARG NODE_VERSION=25
-ARG DEV_MODE=false
-FROM node:${NODE_VERSION}-alpine
+ARG BASE_IMAGE=node:alpine
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
+ARG DEV_MODE=false
 RUN if [ "$DEV_MODE" = "true" ]; then \
-    apk add --no-cache git curl python3 build-base; \
+    (apk add --no-cache git curl build-base python3 autoconf || \
+     apt-get update && apt-get install -y git curl build-essential python3 autoconf); \
     fi
 
-RUN echo "{\"name\": \"nodejs-all-in-one\", \"version\": \"1.0.0\", \"node_version\": \"$NODE_VERSION\", \"dev\": \"$DEV_MODE\"}" > package.json
+# Metadata for identification
+RUN echo "{\"image\": \"all-in-one\", \"base\": \"${BASE_IMAGE}\"}" > /image-info.json
 
 CMD ["node"]
