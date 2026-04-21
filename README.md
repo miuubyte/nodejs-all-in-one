@@ -1,20 +1,25 @@
-# Node.js 18 Container 🚀
+# Node.js All-in-One Container 🚀
 
-Custom Docker container for Node.js 18 (Alpine Linux).
+Multi-version Docker containers for Node.js (Alpine Linux).
+
+## Supported Versions
+- **Node.js 18**: `ghcr.io/miuubyte/nodejs-all-in-one:18`
+- **Node.js 20**: `ghcr.io/miuubyte/nodejs-all-in-one:20`
+- **Node.js 22**: `ghcr.io/miuubyte/nodejs-all-in-one:22` (Latest)
 
 ## Usage
 
-### Pull from GHCR
+### Pull a specific version
 ```bash
-docker pull ghcr.io/miuubyte/nodejs-18-container:latest
+docker pull ghcr.io/miuubyte/nodejs-all-in-one:20
 ```
 
 ### Run
 ```bash
-docker run -it ghcr.io/miuubyte/nodejs-18-container:latest node -v
+docker run -it ghcr.io/miuubyte/nodejs-all-in-one:latest node -v
 ```
 
 ## Features
-- Base image: `node:18-alpine`
-- Lightweight and secure
-- Automated builds via GitHub Actions
+- Multi-arch support (via GitHub Actions)
+- Automated cleanup of old versions
+- Always based on latest Alpine images
