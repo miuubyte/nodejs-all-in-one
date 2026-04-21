@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 1
       matrix:
         node-version: ${{ fromJson(needs.get-versions.outputs.matrix) }}
     permissions:
