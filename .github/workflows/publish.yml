@@ -90,22 +90,25 @@ jobs:
       - name: Determine Base Image
         id: base
         run: |
-          V="${{ matrix.node-version }}"
+          V=$(echo "${{ matrix.node-version }}" | xargs)
           FULL="${{ steps.meta.outputs.full }}"
-          # Use full version for legacy slim images to ensure tag existence (e.g. 5.12.0-slim)
-          if [[ "$V" == "0.10" || "$V" == "0.12" || "$V" == "5" || "$V" == "7" || "$V" == "9" ]]; then
-            echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
-          elif [ "$V" -lt 4 ]; then
-            echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
-          else
-            echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
-          fi
+          case $V in
+            0.10|0.12|5|7|9)
+              echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              if [ "$V" -lt 4 ]; then
+                echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
+              else
+                echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
+              fi
+              ;;
+          esac
 
       - name: Check Dev-Kit Eligibility
         id: devkit
         run: |
-          V="${{ matrix.node-version }}"
-          # Extract major version even if it's 0.10 or 18
+          V=$(echo "${{ matrix.node-version }}" | xargs)
           MAJOR=$(echo "$V" | cut -d. -f1)
           if [ "$MAJOR" -ge 18 ]; then
             echo "build=true" >> $GITHUB_OUTPUT
