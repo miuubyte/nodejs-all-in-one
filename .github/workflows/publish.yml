@@ -91,7 +91,7 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-  update-readme:
+  update-assets:
     needs: get-versions
     runs-on: ubuntu-latest
     permissions:
@@ -100,12 +100,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Generate README
+      - name: Update Dockerfile and README
         run: |
           VERSIONS='${{ needs.get-versions.outputs.matrix }}'
           LATEST='${{ needs.get-versions.outputs.latest }}'
           REPO="${{ github.repository }}"
           
+          # Update Dockerfile default version
+          sed -i "s/ARG NODE_VERSION=.*/ARG NODE_VERSION=$LATEST/" Dockerfile
+          
+          # Update README.md
           echo "# Node.js All-in-One Container 🚀" > README.md
           echo "![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)" >> README.md
           echo "" >> README.md
@@ -134,12 +138,12 @@ jobs:
           
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
-          git add README.md
-          git commit -m "docs: update version table in README [skip ci]" || exit 0
+          git add README.md Dockerfile
+          git commit -m "chore: auto-update Dockerfile and README to Node.js v$LATEST [skip ci]" || exit 0
           git push
 
   cleanup:
-    needs: [tag-latest, update-readme]
+    needs: [tag-latest, update-assets]
     runs-on: ubuntu-latest
     permissions:
       packages: write
