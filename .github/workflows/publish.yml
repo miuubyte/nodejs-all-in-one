@@ -123,6 +123,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.base.outputs.img }}
           push: true
+          provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}
@@ -137,6 +138,7 @@ jobs:
             BASE_IMAGE=${{ steps.base.outputs.img }}
             DEV_MODE=true
           push: true
+          provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-dev
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}-dev
@@ -169,6 +171,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.base.outputs.img }}
           push: true
+          provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-base
