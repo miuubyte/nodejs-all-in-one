@@ -1,13 +1,29 @@
 # Node.js Current Versions (All-in-One) 🚀
-
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/miuubyte/nodejs-current-versions/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)
 
-Multi-version Docker containers for Node.js (Alpine Linux). Includes **all** versions (LTS + Current).
+Multi-version Docker containers for Node.js (Alpine Linux). Includes all versions (LTS + Current).
 
 ## 📦 Supported Versions
-*This list is automatically updated by GitHub Actions.*
+
+| Node.js Version | Container Image Tag | Status |
+| :--- | :--- | :--- |
+| **Node.js 25** | `ghcr.io/miuubyte/nodejs-current-versions:25` | **Latest** 🌟 |
+| **Node.js 24** | `ghcr.io/miuubyte/nodejs-current-versions:24` | Stable |
+| **Node.js 22** | `ghcr.io/miuubyte/nodejs-current-versions:22` | Stable |
+| **Node.js 20** | `ghcr.io/miuubyte/nodejs-current-versions:20` | Stable |
+| **Node.js 18** | `ghcr.io/miuubyte/nodejs-current-versions:18` | Stable |
+| **Node.js 16** | `ghcr.io/miuubyte/nodejs-current-versions:16` | Stable |
+| **Node.js 14** | `ghcr.io/miuubyte/nodejs-current-versions:14` | Stable |
+| **Node.js 12** | `ghcr.io/miuubyte/nodejs-current-versions:12` | Stable |
+| **Node.js 10** | `ghcr.io/miuubyte/nodejs-current-versions:10` | Stable |
+| **Node.js 8** | `ghcr.io/miuubyte/nodejs-current-versions:8` | Stable |
+| **Node.js 6** | `ghcr.io/miuubyte/nodejs-current-versions:6` | Stable |
+| **Node.js 4** | `ghcr.io/miuubyte/nodejs-current-versions:4` | Stable |
 
 ## 🚀 Quick Usage
 ```bash
 docker pull ghcr.io/miuubyte/nodejs-current-versions:latest
 ```
+
+---
+*This README is automatically updated by GitHub Actions.*
