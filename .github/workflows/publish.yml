@@ -21,15 +21,17 @@ jobs:
       - id: set-matrix
         run: |
           DATA=$(curl -s https://nodejs.org/dist/index.json)
-          VERSIONS=$(echo $DATA | jq -c '[.[] | select(.lts != false) | .version | capture("v(?<major>\\d+)") | .major | tonumber] | unique | sort')
-          LATEST=$(echo $DATA | jq -r '[.[] | select(.lts != false) | .version | capture("v(?<major>\\d+)") | .major | tonumber] | max')
+          MAJORS=$(echo $DATA | jq -c '[.[] | .version | capture("v(?<major>\\d+)") | .major | tonumber | select(. > 0)] | unique | sort')
+          VERSIONS=$(echo $MAJORS | jq -c '["0.10", "0.12"] + .')
+          LATEST=$(echo $DATA | jq -r '.[0].version | capture("v(?<major>\\d+)") | .major')
           echo "matrix=$VERSIONS" >> $GITHUB_OUTPUT
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
 
   build-and-push:
-    needs: get-versions
+    needs: [get-versions]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       max-parallel: 1
       matrix:
         node-version: ${{ fromJson(needs.get-versions.outputs.matrix) }}
@@ -40,52 +42,94 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract full version
         id: meta
         run: |
-          FULL=$(curl -s https://nodejs.org/dist/index.json | jq -r --arg major "${{ matrix.node-version }}" '.[] | select(.version | startswith("v"+$major+".")) | .version' | head -n 1 | sed 's/v//')
+          V="${{ matrix.node-version }}"
+          DATA=$(curl -s https://nodejs.org/dist/index.json)
+          if [[ "$V" == "0.10" || "$V" == "0.12" ]]; then
+            FULL=$(echo $DATA | jq -r --arg prefix "v$V." '.[] | select(.version | startswith($prefix)) | .version' | head -n 1 | sed 's/v//')
+          else
+            FULL=$(echo $DATA | jq -r --arg major "v$V." '.[] | select(.version | startswith($major)) | .version' | head -n 1 | sed 's/v//')
+          fi
           echo "full=$FULL" >> $GITHUB_OUTPUT
-      - name: Build Standard
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          build-args: NODE_VERSION=${{ matrix.node-version }}
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-alpine
-      - name: Build Dev-Kit
+
+      - name: Determine Base Image and Suffix
+        id: base
+        run: |
+          V=$(echo "${{ matrix.node-version }}" | xargs)
+          FULL="${{ steps.meta.outputs.full }}"
+          case $V in
+            0.10|0.12|5|7|9)
+              echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
+              echo "suffix=slim" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              if [ "$V" -lt 4 ]; then
+                echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
+                echo "suffix=slim" >> $GITHUB_OUTPUT
+              else
+                echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
+                echo "suffix=alpine" >> $GITHUB_OUTPUT
+              fi
+              ;;
+          esac
+
+      - name: Check Dev-Kit Eligibility
+        id: devkit
+        run: |
+          V=$(echo "${{ matrix.node-version }}" | xargs)
+          MAJOR=$(echo "$V" | cut -d. -f1)
+          if [ "$MAJOR" -ge 18 ]; then
+            echo "build=true" >> $GITHUB_OUTPUT
+          else
+            echo "build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and Push (Grouped Tags)
         uses: docker/build-push-action@v5
         with:
           context: .
           build-args: |
-            NODE_VERSION=${{ matrix.node-version }}
+            BASE_IMAGE=${{ steps.base.outputs.img }}
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-${{ steps.base.outputs.suffix }}
+
+      - name: Build and Push Dev-Kit (Grouped Tags)
+        if: steps.devkit.outputs.build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          build-args: |
+            BASE_IMAGE=${{ steps.base.outputs.img }}
             DEV_MODE=true
           push: true
+          provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-dev
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.full }}-dev
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.node-version }}-${{ steps.base.outputs.suffix }}-dev
 
   tag-latest:
     needs: [get-versions, build-and-push]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
@@ -96,42 +140,61 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          build-args: NODE_VERSION=${{ needs.get-versions.outputs.latest }}
+          build-args: |
+            BASE_IMAGE=node:${{ needs.get-versions.outputs.latest }}-alpine
           push: true
+          provenance: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-alpine
 
   update-assets:
-    needs: get-versions
+    needs: [get-versions, build-and-push]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Update Dockerfile and README
+      - name: Update README
         run: |
-          LATEST='${{ needs.get-versions.outputs.latest }}'
-          sed -i "s/ARG NODE_VERSION=.*/ARG NODE_VERSION=$LATEST/" Dockerfile
+          VERSIONS='${{ needs.get-versions.outputs.matrix }}'
+          REPO="${{ github.repository }}"
+          echo "# Node.js All-in-One Container 🚀" > README.md
+          echo "![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
+          echo "" >> README.md
+          echo "Multi-version Node.js images. **v0.10 to v23+**. Intelligent hybrid OS (Alpine/Slim)." >> README.md
+          echo "" >> README.md
+          echo "## 📦 Supported Versions (Grouped)" >> README.md
+          echo "| Version | Standard Tags | Dev-Kit Tags (v18+) | Base OS |" >> README.md
+          echo "| :--- | :--- | :--- | :--- |" >> README.md
+          echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
+            OS="Alpine"
+            SUFFIX="alpine"
+            if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; SUFFIX="slim"; fi
+            STD="\`$v\`, \`$v-$SUFFIX\`"
+            DEVKIT="N/A"
+            MAJOR=$(echo "$v" | cut -d. -f1)
+            if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\`, \`$v-$SUFFIX-dev\` ✅"; fi
+            echo "| **Node.js $v** | $STD | $DEVKIT | $OS |" >> README.md
+          done
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
-          git add Dockerfile
-          git commit -m "chore: auto-update Dockerfile [skip ci]" || exit 0
+          git add README.md
+          git commit -m "chore: sync clean readme [skip ci]" || exit 0
           git push
 
-  cleanup:
+  cleanup-final:
     needs: [tag-latest, update-assets]
     runs-on: ubuntu-latest
     permissions:
       packages: write
     steps:
-      - name: Deep Cleanup
+      - name: Deep Orphan Cleanup
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          for page in {1..5}; do
+          for page in {1..10}; do
             VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3+json" \
               "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
             if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
             echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
