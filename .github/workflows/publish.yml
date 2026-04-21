@@ -100,27 +100,35 @@ jobs:
           REPO="${{ github.repository }}"
           
           echo "# Node.js All-in-One Container 🚀" > README.md
-          echo "Multi-version Docker containers for Node.js (Alpine Linux)." >> README.md
+          echo "![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![GitHub Package](https://img.shields.io/badge/Container-GHCR-blue?style=for-the-badge&logo=docker)" >> README.md
           echo "" >> README.md
-          echo "## Supported Versions" >> README.md
+          echo "Multi-version Docker containers for Node.js (Alpine Linux). Automatically updated and optimized." >> README.md
+          echo "" >> README.md
+          echo "## 📦 Supported Versions" >> README.md
+          echo "" >> README.md
+          echo "| Node.js Version | Container Image Tag | Status |" >> README.md
+          echo "| :--- | :--- | :--- |" >> README.md
           
           # Convert JSON array to list and sort descending for README
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
-            EXTRA=""
-            if [ "$v" == "$LATEST" ]; then EXTRA=" (Latest)"; fi
-            echo "- **Node.js $v**: \`ghcr.io/$REPO:$v\`$EXTRA" >> README.md
+            STATUS="Stable"
+            if [ "$v" == "$LATEST" ]; then STATUS="**Latest** 🌟"; fi
+            echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $STATUS |" >> README.md
           done
           
           echo "" >> README.md
-          echo "## Usage" >> README.md
+          echo "## 🚀 Quick Usage" >> README.md
           echo "\`\`\`bash" >> README.md
           echo "docker pull ghcr.io/$REPO:latest" >> README.md
           echo "\`\`\`" >> README.md
+          echo "" >> README.md
+          echo "---" >> README.md
+          echo "*This README is automatically updated by GitHub Actions.*" >> README.md
           
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
           git add README.md
-          git commit -m "docs: update README with supported versions [skip ci]" || exit 0
+          git commit -m "docs: update version table in README [skip ci]" || exit 0
           git push
 
   cleanup:
@@ -132,24 +140,27 @@ jobs:
       - name: Delete all untagged versions
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          echo "Deep cleaning untagged versions for $PACKAGE_NAME..."
+          echo "Running deep cleanup for $PACKAGE_NAME..."
           
-          # Fetch up to 100 versions (increase if needed)
-          VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100")
-          
-          # Iterate and delete if tags are empty or null
-          echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
-            id=$(echo "$version" | jq -r '.id')
-            tags=$(echo "$version" | jq -r '.metadata.container.tags')
-            name=$(echo "$version" | jq -r '.name')
+          # Use a loop to handle potential large number of versions and ensure GITHUB_TOKEN has permission
+          for page in {1..3}; do
+            VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
             
-            if [ "$tags" == "null" ] || [ "$tags" == "[]" ] || [ -z "$tags" ]; then
-              echo "Removing untagged: $name (ID: $id)"
-              curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
-            fi
+            # If no versions found, break
+            if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
+            
+            echo "$VERSIONS" | jq -c '.[]' | while read -r version; do
+              id=$(echo "$version" | jq -r '.id')
+              tags=$(echo "$version" | jq -r '.metadata.container.tags')
+              
+              if [ "$tags" == "null" ] || [ "$tags" == "[]" ] || [ -z "$tags" ]; then
+                echo "Deleting untagged version ID: $id"
+                curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
+              fi
+            done
           done
-          echo "Cleanup complete."
+          echo "Deep cleanup complete."
