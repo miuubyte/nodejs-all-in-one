@@ -212,9 +212,7 @@ jobs:
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
           git add README.md Dockerfile
-          git commit -m "chore: sync assets and latest base [skip ci]
-
-Co-authored-by: yemobyte <248470968+yemobyte@users.noreply.github.com>" || exit 0
+          git commit -m "chore: sync assets and latest base [skip ci]" -m "Co-authored-by: yemobyte <248470968+yemobyte@users.noreply.github.com>" || exit 0
           git push
 
   cleanup-final:
