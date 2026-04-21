@@ -191,7 +191,7 @@ jobs:
           sed -i "s|ARG BASE_IMAGE=.*|ARG BASE_IMAGE=node:$LATEST-alpine|" Dockerfile
           
           echo "# Node.js All-in-One Container 🚀" > README.md
-          echo "![Status](https://img.shields.io/github/actions/workflow/status/\$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
+          echo "![Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
           echo "" >> README.md
           echo "The ultimate 'Evergreen' registry for Node.js. Automatically maintained, scanned, and updated. From legacy **v0.10** to modern **v25+**." >> README.md
           echo "" >> README.md
@@ -208,6 +208,9 @@ jobs:
             if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\`, \`$v-$SUFFIX-dev\` ✅"; fi
             echo "| **Node.js $v** | $STD | $DEVKIT | $OS |" >> README.md
           done
+          echo "" >> README.md
+          echo "---" >> README.md
+          echo "Maintainer: miuubyte" >> README.md
           
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
