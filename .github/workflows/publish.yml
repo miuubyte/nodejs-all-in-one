@@ -21,7 +21,6 @@ jobs:
       - id: set-matrix
         run: |
           DATA=$(curl -s https://nodejs.org/dist/index.json)
-          # Get all major versions, but split 0 into 0.10 and 0.12
           MAJORS=$(echo $DATA | jq -c '[.[] | .version | capture("v(?<major>\\d+)") | .major | tonumber | select(. > 0)] | unique | sort')
           VERSIONS=$(echo $MAJORS | jq -c '["0.10", "0.12"] + .')
           LATEST=$(echo $DATA | jq -r '.[0].version | capture("v(?<major>\\d+)") | .major')
@@ -33,10 +32,11 @@ jobs:
     permissions:
       packages: write
     steps:
-      - name: Neat Registry Cleanup
+      - name: Aggressive Registry Cleanup
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          for page in {1..20}; do
+          # Clean up to 500 latest versions to ensure no orphans survive
+          for page in {1..5}; do
             VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
             if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
@@ -44,7 +44,7 @@ jobs:
               id=$(echo "$version" | jq -r '.id')
               tags=$(echo "$version" | jq -r '.metadata.container.tags')
               if [ "$tags" == "null" ] || [ "$tags" == "[]" ]; then
-                echo "Deleting untagged ID: $id"
+                echo "Removing orphaned SHA digest: $id"
                 curl -s -X DELETE -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
                   "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions/$id"
               fi
@@ -86,7 +86,7 @@ jobs:
           fi
           echo "full=$FULL" >> $GITHUB_OUTPUT
 
-      - name: Determine Base Image
+      - name: Determine Base Image and Suffix
         id: base
         run: |
           V=$(echo "${{ matrix.node-version }}" | xargs)
@@ -94,12 +94,15 @@ jobs:
           case $V in
             0.10|0.12|5|7|9)
               echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
+              echo "suffix=slim" >> $GITHUB_OUTPUT
               ;;
             *)
               if [ "$V" -lt 4 ]; then
                 echo "img=node:$FULL-slim" >> $GITHUB_OUTPUT
+                echo "suffix=slim" >> $GITHUB_OUTPUT
               else
                 echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
+                echo "suffix=alpine" >> $GITHUB_OUTPUT
               fi
               ;;
           esac
@@ -115,28 +118,32 @@ jobs:
             echo "build=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Manual Build and Push (Standard)
+      - name: Build and Push Standard
         run: |
           IMG_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          SUFFIX="${{ steps.base.outputs.suffix }}"
           docker build --build-arg BASE_IMAGE=${{ steps.base.outputs.img }} \
             -t $IMG_TAG:${{ matrix.node-version }} \
             -t $IMG_TAG:${{ steps.meta.outputs.full }} \
-            -t $IMG_TAG:${{ matrix.node-version }}-base \
+            -t $IMG_TAG:${{ matrix.node-version }}-$SUFFIX \
             .
           docker push $IMG_TAG:${{ matrix.node-version }}
           docker push $IMG_TAG:${{ steps.meta.outputs.full }}
-          docker push $IMG_TAG:${{ matrix.node-version }}-base
+          docker push $IMG_TAG:${{ matrix.node-version }}-$SUFFIX
 
-      - name: Manual Build and Push (Dev-Kit)
+      - name: Build and Push Dev-Kit
         if: steps.devkit.outputs.build == 'true'
         run: |
           IMG_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          SUFFIX="${{ steps.base.outputs.suffix }}"
           docker build --build-arg BASE_IMAGE=${{ steps.base.outputs.img }} --build-arg DEV_MODE=true \
             -t $IMG_TAG:${{ matrix.node-version }}-dev \
             -t $IMG_TAG:${{ steps.meta.outputs.full }}-dev \
+            -t $IMG_TAG:${{ matrix.node-version }}-$SUFFIX-dev \
             .
           docker push $IMG_TAG:${{ matrix.node-version }}-dev
           docker push $IMG_TAG:${{ steps.meta.outputs.full }}-dev
+          docker push $IMG_TAG:${{ matrix.node-version }}-$SUFFIX-dev
 
   tag-latest:
     needs: [get-versions, build-and-push]
@@ -152,20 +159,16 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Determine Base Image
-        id: base
-        run: |
-          V=${{ needs.get-versions.outputs.latest }}
-          echo "img=node:$V-alpine" >> $GITHUB_OUTPUT
       - name: Build and push latest (Manual)
         run: |
           IMG_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          docker build --build-arg BASE_IMAGE=${{ steps.base.outputs.img }} \
+          V=${{ needs.get-versions.outputs.latest }}
+          docker build --build-arg BASE_IMAGE=node:$V-alpine \
             -t $IMG_TAG:latest \
-            -t $IMG_TAG:latest-base \
+            -t $IMG_TAG:latest-alpine \
             .
           docker push $IMG_TAG:latest
-          docker push $IMG_TAG:latest-base
+          docker push $IMG_TAG:latest-alpine
 
   update-assets:
     needs: [get-versions, build-and-push]
@@ -175,47 +178,46 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Update Dockerfile and README
+      - name: Update README
         run: |
           VERSIONS='${{ needs.get-versions.outputs.matrix }}'
-          LATEST='${{ needs.get-versions.outputs.latest }}'
           REPO="${{ github.repository }}"
-          sed -i "s|ARG BASE_IMAGE=.*|ARG BASE_IMAGE=node:$LATEST-alpine|" Dockerfile
           echo "# Node.js All-in-One Container 🚀" > README.md
           echo "![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/$REPO/publish.yml?branch=main&style=for-the-badge) ![Security](https://img.shields.io/badge/Security-Trivy_Passed-green?style=for-the-badge&logo=armosecurity)" >> README.md
           echo "" >> README.md
-          echo "Multi-version Docker containers for Node.js (Alpine/Slim). **v0.10 to v23+**." >> README.md
+          echo "Multi-version Node.js images. **v0.10 to v23+**. Intelligent hybrid OS (Alpine/Slim)." >> README.md
           echo "" >> README.md
-          echo "## 🛠️ Dev-Kit (Developer Variant)" >> README.md
-          echo "Varian dengan tools lengkap (\`git\`, \`curl\`, \`build-base\`) untuk mendukung kompilasi native. **Tersedia khusus untuk Node.js v18 ke atas (LTS/Current).**" >> README.md
-          echo "" >> README.md
-          echo "## 📦 Supported Versions" >> README.md
-          echo "| Version | Image Tag | Dev-Kit | Base OS |" >> README.md
+          echo "## 🛠️ Tags Structure" >> README.md
+          echo "| Version | Standard Tags | Dev-Kit Tags (v18+) | Base OS |" >> README.md
           echo "| :--- | :--- | :--- | :--- |" >> README.md
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
             OS="Alpine"
-            if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; fi
+            SUFFIX="alpine"
+            if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; SUFFIX="slim"; fi
+            
+            STD="\`$v\`, \`$v-$SUFFIX\`"
             DEVKIT="N/A"
             MAJOR=$(echo "$v" | cut -d. -f1)
-            if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\` ✅"; fi
-            echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $DEVKIT | $OS |" >> README.md
+            if [ "$MAJOR" -ge 18 ]; then DEVKIT="\`$v-dev\`, \`$v-$SUFFIX-dev\` ✅"; fi
+            
+            echo "| **Node.js $v** | $STD | $DEVKIT | $OS |" >> README.md
           done
           git config --global user.name "miuubyte"
           git config --global user.email "miuudev@gmail.com"
-          git add README.md Dockerfile
-          git commit -m "chore: sync assets [skip ci]" || exit 0
+          git add README.md
+          git commit -m "chore: sync organized readme [skip ci]" || exit 0
           git push
 
-  cleanup:
+  cleanup-final:
     needs: [tag-latest, update-assets]
     runs-on: ubuntu-latest
     permissions:
       packages: write
     steps:
-      - name: Final Cleanup
+      - name: Deep Orphan Cleanup
         run: |
           PACKAGE_NAME=${{ github.event.repository.name }}
-          for page in {1..20}; do
+          for page in {1..10}; do
             VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$PACKAGE_NAME/versions?per_page=100&page=$page")
             if [ "$(echo "$VERSIONS" | jq '. | length')" -eq 0 ]; then break; fi
