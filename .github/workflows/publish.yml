@@ -91,7 +91,8 @@ jobs:
         id: base
         run: |
           V="${{ matrix.node-version }}"
-          if [[ "$V" == "0.10" || "$V" == "0.12" ]]; then
+          # Check for versions that lack Alpine support (v0.x, v5, v7, v9)
+          if [[ "$V" == "0.10" || "$V" == "0.12" || "$V" == "5" || "$V" == "7" || "$V" == "9" ]]; then
             echo "img=node:$V-slim" >> $GITHUB_OUTPUT
           elif [ "$V" -lt 4 ]; then
             echo "img=node:$V-slim" >> $GITHUB_OUTPUT
@@ -195,7 +196,7 @@ jobs:
           echo "| :--- | :--- | :--- | :--- |" >> README.md
           echo $VERSIONS | jq -r '.[]' | sort -rn | while read v; do
             OS="Alpine"
-            if [[ "$v" == "0.10" || "$v" == "0.12" ]]; then OS="Slim (Debian)"; fi
+            if [[ "$v" == "0.10" || "$v" == "0.12" || "$v" == "5" || "$v" == "7" || "$v" == "9" ]]; then OS="Slim (Debian)"; fi
             DEVKIT="N/A"
             if (( $(echo "$v >= 18" | bc -l) )); then DEVKIT="\`$v-dev\` ✅"; fi
             echo "| **Node.js $v** | \`ghcr.io/$REPO:$v\` | $DEVKIT | $OS |" >> README.md
