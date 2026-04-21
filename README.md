@@ -7,8 +7,7 @@ Multi-version Docker containers for Node.js (Alpine Linux). Automatically update
 
 | Node.js Version | Container Image Tag | Status |
 | :--- | :--- | :--- |
-| **Node.js 25** | `ghcr.io/miuubyte/nodejs-all-in-one:25` | **Latest** 🌟 |
-| **Node.js 24** | `ghcr.io/miuubyte/nodejs-all-in-one:24` | Stable |
+| **Node.js 24** | `ghcr.io/miuubyte/nodejs-all-in-one:24` | **Latest** 🌟 |
 | **Node.js 22** | `ghcr.io/miuubyte/nodejs-all-in-one:22` | Stable |
 | **Node.js 20** | `ghcr.io/miuubyte/nodejs-all-in-one:20` | Stable |
 | **Node.js 18** | `ghcr.io/miuubyte/nodejs-all-in-one:18` | Stable |
