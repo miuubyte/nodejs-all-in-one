@@ -3,7 +3,7 @@
 
 Multi-version Node.js images. **v0.10 to v23+**. Intelligent hybrid OS (Alpine/Slim).
 
-## 🛠️ Tags Structure
+## 📦 Supported Versions (Grouped)
 | Version | Standard Tags | Dev-Kit Tags (v18+) | Base OS |
 | :--- | :--- | :--- | :--- |
 | **Node.js 25** | `25`, `25-alpine` | `25-dev`, `25-alpine-dev` ✅ | Alpine |
